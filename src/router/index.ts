@@ -11,6 +11,7 @@ import ProxiesPage from '@/views/ProxiesPage.vue'
 import RulesPage from '@/views/RulesPage.vue'
 import SettingsPage from '@/views/SettingsPage.vue'
 import SetupPage from '@/views/SetupPage.vue'
+import ConfigPage from '@/views/ConfigEditorPage.vue'
 import { useTitle } from '@vueuse/core'
 import { watch } from 'vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
@@ -55,7 +56,14 @@ const router = createRouter({
       path: '/',
       redirect: ROUTE_NAME.proxies,
       component: HomePage,
-      children: childrenRouter,
+      children: [
+        ...childrenRouter,
+        {
+          path: 'config',
+          name: ROUTE_NAME.config,
+          component: ConfigPage,
+        }
+      ],
     },
     {
       path: '/setup',

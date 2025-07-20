@@ -3,8 +3,10 @@
     class="sidebar bg-base-200 text-base-content scrollbar-hidden h-full overflow-x-hidden p-2 transition-all"
     :class="isSidebarCollapsed ? 'w-18 px-0' : 'w-64'"
   >
+    
     <div :class="twMerge('flex h-full flex-col gap-2', isSidebarCollapsed ? 'w-18 px-0' : 'w-60')">
       <ul class="menu w-full flex-1">
+        <!-- Пункты меню -->
         <li
           v-for="r in renderRoutes"
           :key="r"
@@ -16,7 +18,8 @@
               isSidebarCollapsed && 'justify-center',
               'py-2',
             ]"
-            @click.passive="() => router.push({ name: r })"
+            @click.prevent="r === ROUTE_NAME.config ? openConfigEditor() : router.push({ name: r })"
+            @auxclick="(e) => e.button === 1 && (r === ROUTE_NAME.config ? openConfigEditor() : router.push({ name: r }))"
           >
             <component
               :is="ROUTE_ICON_MAP[r]"
@@ -77,4 +80,9 @@ const mouseenterHandler = (e: MouseEvent, r: string) => {
 }
 
 const route = useRoute()
+
+// Функция для открытия редактора конфигурации
+const openConfigEditor = () => {
+  router.push({ name: ROUTE_NAME.config })
+}
 </script>

@@ -133,6 +133,7 @@ export const getColorForLatency = (latency: number) => {
 
 export const renderRoutes = computed(() => {
   return Object.values(ROUTE_NAME).filter((r) => {
+    // Исключаем setup и, при определенных условиях, overview
     return ![ROUTE_NAME.setup, !splitOverviewPage.value && ROUTE_NAME.overview].includes(r)
   })
 })

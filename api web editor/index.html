@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .api-status {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .api-status.online {
+      background-color: #f6ffed;
+      border: 1px solid #b7eb8f;
+      color: #52c41a;
+    }
+    .api-status.offline {
+      background-color: #fff2f0;
+      border: 1px solid #ffccc7;
+      color: #ff4d4f;
+    }
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    .status-indicator.online {
+      background-color: #52c41a;
+    }
+    .status-indicator.offline {
+      background-color: #ff4d4f;
+    }
+    h3 {
+      margin-bottom: 15px;
+    }
+    .file-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 15px;
+      max-width: 800px;
+    }
+    .file-button {
+      padding: 8px 15px;
+      background-color: #f0f0f0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 10px;
+      margin-right: 10px;
+      display: inline-flex;
+      align-items: center;
+      font-size: 16px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .file-button:hover {
+      background-color: #e0e0e0;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    .directory-button {
+      background-color: #e6f7ff;
+      border-color: #91d5ff;
+    }
+    .directory-button:hover {
+      background-color: #bae7ff;
+    }
+
+    textarea {
+      width: 100%;
+      max-width: 800px;
+      min-height: 300px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    .save-button, .download-button {
+      margin-top: 10px;
+      padding: 8px 15px;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    .save-button {
+      background-color: #52c41a;
+    }
+    .save-button:hover {
+      background-color: #389e0d;
+    }
+    .download-button {
+      background-color: #1890ff;
+    }
+    .download-button:hover {
+      background-color: #096dd9;
+    }
+  </style>
+</head>
+<body>
+  <div id="apiStatus" class="api-status offline">
+    <div class="status-indicator offline"></div>
+    <span>Проверка соединения с API (http://192.168.1.63:8000)...</span>
+  </div>
+
+  <div id="fileButtons" class="file-buttons"></div>
+  <textarea id="content" rows="15"></textarea><br>
+  <button class="save-button" onclick="saveFile()">Сохранить</button>
+  <button class="download-button" onclick="downloadCurrentConfig()">Скачать текущий конфиг</button>
+
+  <script>
+    // Глобальная переменная для хранения текущего файла
+    let currentFile = '';
+
+    // Загрузка кнопок и проверка API при загрузке страницы
+    window.onload = function() {
+      createFileButtons();
+      checkApiStatus();
+      
+      // Периодическая проверка статуса API каждые 30 секунд
+      setInterval(checkApiStatus, 30000);
+    };
+    
+    // Функция для проверки доступности API
+    async function checkApiStatus() {
+      const statusElement = document.getElementById('apiStatus');
+      const statusIndicator = statusElement.querySelector('.status-indicator');
+      const statusText = statusElement.querySelector('span');
+      
+      try {
+        // Создаем контроллер для отмены запроса
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const res = await fetch('http://192.168.1.63:8000/list?path=', { 
+          method: 'GET',
+          signal: controller.signal
+        });
+        
+        // Очищаем таймаут, если запрос успешно выполнен
+        clearTimeout(timeoutId);
+        
+        if (res.ok) {
+            // API доступен
+            statusElement.className = 'api-status online';
+            statusIndicator.className = 'status-indicator online';
+            statusText.textContent = 'API доступен (http://192.168.1.63:8000)';
+          } else {
+            // API вернул ошибку
+            statusElement.className = 'api-status offline';
+            statusIndicator.className = 'status-indicator offline';
+            statusText.textContent = 'API недоступен (http://192.168.1.63:8000): ' + (await res.text());
+          }
+      } catch (error) {
+        // Ошибка соединения
+        statusElement.className = 'api-status offline';
+        statusIndicator.className = 'status-indicator offline';
+        statusText.textContent = 'API недоступен (http://192.168.1.63:8000): ' + (error.message || 'Ошибка соединения');
+      }
+    }
+
+    // Функция для создания кнопок для предопределенных файлов
+    function createFileButtons() {
+      const predefinedFiles = [
+        'config.json',
+        'manual.conf',
+        'mode.conf',
+        'rules/custom_list.json'
+      ];
+      
+      const fileButtonsContainer = document.getElementById('fileButtons');
+      fileButtonsContainer.innerHTML = '';
+      
+      // Создаем кнопки для предопределенных файлов
+      predefinedFiles.forEach(filePath => {
+        const fileButton = document.createElement('button');
+        fileButton.className = 'file-button';
+        
+        // Получаем имя файла из пути
+        const fileName = filePath.split('/').pop();
+        fileButton.innerHTML = `📄 ${fileName}`;
+        
+        fileButton.onclick = () => loadFile(filePath);
+        fileButtonsContainer.appendChild(fileButton);
+      });
+    }
+
+    // Функция для загрузки содержимого файла
+    async function loadFile(path) {
+      try {
+        currentFile = path;
+        const res = await fetch(`http://192.168.1.63:8000/file?path=${encodeURIComponent(path)}`);
+        const data = await res.json();
+        
+        if (res.ok) {
+          document.getElementById('content').value = data.content;
+          
+          // Выделяем активную кнопку
+          const buttons = document.querySelectorAll('.file-button');
+          buttons.forEach(button => {
+            button.style.backgroundColor = '';
+            button.style.fontWeight = 'normal';
+          });
+          
+          // Находим кнопку для текущего файла и выделяем её
+          const fileName = path.split('/').pop();
+          const activeButton = Array.from(buttons).find(button => button.textContent.includes(fileName));
+          if (activeButton) {
+            activeButton.style.backgroundColor = '#d9f7be';
+            activeButton.style.fontWeight = 'bold';
+          }
+        } else {
+          alert(`Ошибка: ${data.error || 'Не удалось загрузить файл'}`);
+        }
+      } catch (error) {
+        alert(`Ошибка: ${error.message || 'Не удалось подключиться к серверу'}`);
+      }
+    }
+
+    // Функция для сохранения файла
+    async function saveFile() {
+      if (!currentFile) {
+        alert('Сначала выберите файл для сохранения!');
+        return;
+      }
+      
+      const content = document.getElementById('content').value;
+      
+      try {
+        const res = await fetch(`http://192.168.1.63:8000/file?path=${encodeURIComponent(currentFile)}`, {
+          method: "POST",
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({content})
+        });
+        
+        if (res.ok) {
+          alert("Файл сохранён!");
+        } else {
+          const data = await res.json();
+          alert(`Ошибка: ${data.error || 'Не удалось сохранить файл'}`);
+        }
+      } catch (error) {
+        alert(`Ошибка: ${error.message || 'Не удалось подключиться к серверу'}`);
+      }
+    }
+    
+    // Функция для скачивания текущего конфигурационного файла
+    async function downloadCurrentConfig() {
+      if (!currentFile) {
+        alert('Сначала выберите файл для скачивания!');
+        return;
+      }
+      
+      try {
+        // Показываем индикатор загрузки
+        const downloadButton = document.querySelector('.download-button');
+        const originalText = downloadButton.textContent;
+        downloadButton.textContent = 'Загрузка файла...';
+        downloadButton.disabled = true;
+        
+        // Создаем контроллер для отмены запроса
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 секунд таймаут
+        
+        // Запрашиваем содержимое текущего файла
+        const res = await fetch(`http://192.168.1.63:8000/file?path=${encodeURIComponent(currentFile)}`, {
+          method: 'GET',
+          signal: controller.signal
+        });
+        
+        // Очищаем таймаут
+        clearTimeout(timeoutId);
+        
+        // Восстанавливаем кнопку
+        downloadButton.textContent = originalText;
+        downloadButton.disabled = false;
+        
+        if (res.ok) {
+          // Получаем содержимое файла
+          const data = await res.json();
+          
+          // Создаем blob из содержимого
+          const blob = new Blob([data.content], { type: 'text/plain' });
+          
+          // Получаем имя файла из пути
+          const fileName = currentFile.split('/').pop();
+          
+          // Создаем ссылку для скачивания
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = fileName;
+          
+          // Добавляем ссылку в DOM, кликаем по ней и удаляем
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        } else {
+          // Обрабатываем ошибку
+          let errorMessage = 'Не удалось скачать файл';
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            // Если ответ не в формате JSON, используем текст ответа
+            errorMessage = await res.text() || errorMessage;
+          }
+          alert(`Ошибка: ${errorMessage}`);
+        }
+      } catch (error) {
+        // Восстанавливаем кнопку в случае ошибки
+        const downloadButton = document.querySelector('.download-button');
+        downloadButton.textContent = 'Скачать текущий конфиг';
+        downloadButton.disabled = false;
+        
+        // Показываем сообщение об ошибке
+        alert(`Ошибка: ${error.message || 'Не удалось подключиться к серверу'}`);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+команды для поднятия api для работы с файлами при помощи Node.js с Express
+
+apt install nodejs npm -y
+mkdir file-api && cd file-api
+npm init -y
+npm install express
+npm install cors
+
+
+nano index.js
+
+const express = require('express');
+const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+const port = 8000;
+
+const BASE_DIR = "/etc/sing-box"; // ← только эта папка доступна
+
+app.use(cors());
+app.use(express.json());
+
+function resolveSafePath(inputPath) {
+    const fullPath = path.resolve(BASE_DIR, inputPath);
+    if (!fullPath.startsWith(BASE_DIR)) {
+        throw new Error("Access denied");
+    }
+    return fullPath;
+}
+
+app.get('/file', (req, res) => {
+    try {
+        const relative = req.query.path || '';
+        const filePath = resolveSafePath(relative);
+
+        if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        const content = fs.readFileSync(filePath, 'utf-8');
+        res.json({ content });
+    } catch (e) {
+        res.status(403).json({ error: e.message });
+    }
+});
+
+app.post('/file', (req, res) => {
+    try {
+        const relative = req.query.path || '';
+        const filePath = resolveSafePath(relative);
+
+        if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        fs.writeFileSync(filePath, req.body.content);
+        res.json({ status: 'ok' });
+    } catch (e) {
+        res.status(403).json({ error: e.message });
+    }
+});
+
+app.get('/list', (req, res) => {
+    try {
+        const relative = req.query.path || '';
+        const targetPath = resolveSafePath(relative);
+
+        if (!fs.existsSync(targetPath) || !fs.statSync(targetPath).isDirectory()) {
+            return res.status(404).json({ error: 'Directory not found' });
+        }
+
+        const entries = fs.readdirSync(targetPath).map(name => {
+            const fullPath = path.join(targetPath, name);
+            const stat = fs.statSync(fullPath);
+            return {
+                name: name,
+                type: stat.isDirectory() ? 'directory' : 'file'
+            };
+        });
+
+        res.json({ files: entries });
+    } catch (e) {
+        res.status(403).json({ error: e.message });
+    }
+});
+
+app.listen(port, () => {
+    console.log(`API running at http://0.0.0.0:${port}`);
+});
+
+
+node index.js
+
+
+Прочитай файл через API:
+В другом терминале или на другой машине в той же сети:
+curl "http://192.168.1.63:8000/file?path=/home/tdcadmin/test.txt"
+
+
+Альтернатива — проверить через браузер (без curl)
+<!DOCTYPE html>
+<html>
+<body>
+  <h3>Редактор файла</h3>
+  <input type="text" id="path" value="/home/tdcadmin/test.txt" size="50">
+  <button onclick="loadFile()">Загрузить</button><br><br>
+  <textarea id="content" rows="10" cols="60"></textarea><br>
+  <button onclick="saveFile()">Сохранить</button>
+
+  <script>
+    async function loadFile() {
+      const path = document.getElementById('path').value;
+      const res = await fetch(`http://192.168.1.63:8000/file?path=${encodeURIComponent(path)}`);
+      const data = await res.json();
+      document.getElementById('content').value = data.content;
+    }
+
+    async function saveFile() {
+      const path = document.getElementById('path').value;
+      const content = document.getElementById('content').value;
+      const res = await fetch(`http://192.168.1.63:8000/file?path=${encodeURIComponent(path)}`, {
+        method: "POST",
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({content})
+      });
+      if (res.ok) alert("Файл сохранён!");
+    }
+  </script>
+</body>
+</html>
+
+

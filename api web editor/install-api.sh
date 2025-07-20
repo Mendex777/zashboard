@@ -1,15 +1,17 @@
 #!/bin/bash
 
+set -e
+
 # Установка Node.js и npm
 apt update
 apt install nodejs npm -y
 
-# Создание директории проекта
+# Путь до директории приложения
 APP_DIR="/opt/sing-box-ui/file-api"
 mkdir -p "$APP_DIR"
-cd "$APP_DIR" || exit 1
+cd "$APP_DIR"
 
-# Инициализация проекта и установка зависимостей
+# Инициализация Node.js-проекта и установка зависимостей
 npm init -y
 npm install express cors
 
@@ -97,7 +99,7 @@ app.listen(port, () => {
 });
 EOF
 
-# Создание systemd-сервиса
+# Создание systemd-сервиса, запускаемого от root
 cat << EOF > /etc/systemd/system/singbox-file-api.service
 [Unit]
 Description=Sing-box File API
@@ -106,7 +108,6 @@ After=network.target
 [Service]
 ExecStart=/usr/bin/node $APP_DIR/index.js
 Restart=always
-User=nobody
 Environment=NODE_ENV=production
 WorkingDirectory=$APP_DIR
 
@@ -114,10 +115,10 @@ WorkingDirectory=$APP_DIR
 WantedBy=multi-user.target
 EOF
 
-# Перезагрузка systemd и включение сервиса
+# Перезагрузка systemd и запуск сервиса
 systemctl daemon-reexec
 systemctl daemon-reload
 systemctl enable singbox-file-api.service
 systemctl start singbox-file-api.service
 
-echo "API установлен и запущен на http://0.0.0.0:8000"
+echo "✅ API установлен и работает от root на http://0.0.0.0:8000"
